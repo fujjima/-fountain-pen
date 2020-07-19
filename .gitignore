@@ -33,3 +33,5 @@
 /vendor/*
 
 /.DS_Store
+
+/.env
