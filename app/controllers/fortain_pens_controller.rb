@@ -25,6 +25,20 @@ class FortainPensController < ApplicationController
     @fortain_pen_datasdatas
   end
 
+  # 追加されたものがあれば新規作成、更新されたものについては更新
+  def import
+    if @fortain_pen_datas
+      importer = @fortain_pen_datas.map do |data|
+        h={}
+        h[:name] = data[0]
+        h[:price] = data[1]
+        h[:niv_type] = data[2]
+        h
+      end
+    end
+    FortainPen.import importer
+  end
+
   def show; end
 
   def destroy; end
@@ -63,6 +77,7 @@ class FortainPensController < ApplicationController
     @fortain_pen_datas = data.each_slice(3).to_a
     modify_price!
     # modify_kind!
+    import
   end
 
   # 金額を整形した状態の配列を返す
