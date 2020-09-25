@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2020_09_23_100943) do
+ActiveRecord::Schema.define(version: 2020_09_25_033543) do
 
   create_table "fortain_pens", options: "ENGINE=InnoDB DEFAULT CHARSET=utf8", force: :cascade do |t|
     t.string "name"
@@ -18,6 +18,8 @@ ActiveRecord::Schema.define(version: 2020_09_23_100943) do
     t.string "niv_type"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "product_number", null: false
+    t.index ["product_number"], name: "index_fortain_pens_on_product_number", unique: true
   end
 
 end

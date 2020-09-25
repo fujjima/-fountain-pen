@@ -15,7 +15,7 @@ TARGET_TABLE_PATH = "//table[@class='dataTableA01' and .//th[text()='サイズ']
 
 # サイトの'ペン'の表記ゆれがあるので、複数パターンを書いている
 # カスタム742は製品名がないので、//span[@class='titleLabel'][1]
-TARGET_DATA_PATH = "//th[text()='製品名' or text()='価格' or text()='ペン種' or text()='ぺン種']//following-sibling::td"
+TARGET_DATA_PATH = "//th[text()='製品名' or text()='品番' or text()='価格' or text()='ペン種' or text()='ぺン種']//following-sibling::td"
 
 
 class FortainPensController < ApplicationController
@@ -25,18 +25,20 @@ class FortainPensController < ApplicationController
     @fortain_pen_datasdatas
   end
 
-  # 追加されたものがあれば新規作成、更新されたものについては更新
   def import
     if @fortain_pen_datas
       importer = @fortain_pen_datas.map do |data|
         h={}
         h[:name] = data[0]
-        h[:price] = data[1]
-        h[:niv_type] = data[2]
+        # 全角は全て半角にして、不要なスペースは削除する
+        h[:product_number] = data[1].tr('０-９ａ-ｚＡ-Ｚ', '0-9a-zA-Z').gsub(/[[:blank]]/, '')
+        h[:price] = data[2]
+        h[:niv_type] = data[3]
         h
       end
     end
-    FortainPen.import importer
+    # 主キーで同じ物を検索し、ヒットしたものに対してはon_duplicate_key_updateで指定されたカラムのみ変更する（こうすることで主キーが変更されることを防ぐ）
+    FortainPen.import importer, on_duplicate_key_update: [:name, :price, :niv_type]
   end
 
   def show; end
@@ -74,16 +76,17 @@ class FortainPensController < ApplicationController
       end
     end
 
-    @fortain_pen_datas = data.each_slice(3).to_a
+    # FIXME: この時点でDBに入れる構造にしたい
+    # マジックナンバーが多すぎる
+    @fortain_pen_datas = data.each_slice(4).to_a
     modify_price!
-    # modify_kind!
     import
   end
 
   # 金額を整形した状態の配列を返す
   def modify_price!
     @fortain_pen_datas.map do |d|
-      d[1] = d[1].match('円').pre_match.delete(',').to_i
+      d[2] = d[2].match('円').pre_match.delete(',').to_i
     end
   end
 end
