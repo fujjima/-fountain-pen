@@ -41,12 +41,6 @@ class FortainPensController < ApplicationController
     FortainPen.import importer, on_duplicate_key_update: [:name, :price, :niv_type]
   end
 
-  def show; end
-
-  def destroy; end
-
-  def update; end
-
   private
 
   def scraping
