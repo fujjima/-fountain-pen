@@ -10,12 +10,12 @@ FORTAIN_PEN_URL = 'https://www.pilot.co.jp/products/pen/fountain/'
 CUSTOM_742_URL = 'https://www.pilot.co.jp/products/pen/fountain/fountain/custom742/'
 CUSTOM_HERITAGE_912_URL = 'https://www.pilot.co.jp/products/pen/fountain/fountain/custom_heritage912/'
 
-# たまに万年筆以外のものが混じっている可能性がある（ボトルインキなど）
+# 万年筆以外のテーブルは弾く（ボトルインキなど）
 TARGET_TABLE_PATH = "//table[@class='dataTableA01' and .//th[text()='サイズ']]"
 
 # サイトの'ペン'の表記ゆれがあるので、複数パターンを書いている
-# カスタム742は製品名がないので、//span[@class='titleLabel'][1]
-TARGET_DATA_PATH = "//th[text()='製品名' or text()='品番' or text()='価格' or text()='ペン種' or text()='ぺン種']//following-sibling::td"
+# カスタム742などは製品名がないため、代わりにspan[@class='titleLabel'][1]で取得している
+TARGET_DATA_PATH = "tbody/tr/th[text()='製品名' or text()='品番' or text()='価格' or text()='ペン種' or text()='ぺン種']//following-sibling::td"
 
 
 class FortainPensController < ApplicationController
@@ -34,11 +34,12 @@ class FortainPensController < ApplicationController
         h[:product_number] = data[1].tr('０-９ａ-ｚＡ-Ｚ', '0-9a-zA-Z').gsub(/[[:blank]]/, '')
         h[:price] = data[2]
         h[:niv_type] = data[3]
+        h[:image] = data[4]
         h
       end
     end
-    # 主キーで同じ物を検索し、ヒットしたものに対してはon_duplicate_key_updateで指定されたカラムのみ変更する（こうすることで主キーが変更されることを防ぐ）
-    FortainPen.import importer, on_duplicate_key_update: [:name, :price, :niv_type]
+    # 主キー(product_number)で検索した結果、ヒットしたものに対してはon_duplicate_key_updateで指定されたカラムのみ変更する（こうすることで主キーが変更されることを防ぐ）
+    FortainPen.import importer, on_duplicate_key_update: [:name, :price, :niv_type, :image]
   end
 
   private
@@ -46,41 +47,53 @@ class FortainPensController < ApplicationController
   def scraping
     @fortain_pen_datas ||= []
     urls, data = [], []
+    image_names = []
+
     html = open(FORTAIN_PEN_URL, &:read)
 
-    # 各種万年筆へのリンク先取得
     doc = Nokogiri::HTML.parse(html)
     # productList_itemsで最初にヒットしたもの
-    doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]/a').each do |node|
-      urls << node.get_attribute(:href)
+    doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]/a').each do |url_node|
+      urls << url_node.get_attribute(:href)
+    end
+
+    # 画像ファイル名の一覧取得
+    doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]//img').each do |image_node|
+      image_names << image_node.get_attribute(:src).split('/').last
     end
 
     # 各万年筆のデータ取得
-    urls.each do |url|
+    urls.each_with_index do |url, idx|
       html = open(url, &:read)
       doc = Nokogiri::HTML.parse(html)
 
-      # カスタム742、カスタムヘリテイジ912に製品名がない
-      if [CUSTOM_742_URL, CUSTOM_HERITAGE_912_URL].include? url
-        data << doc.xpath("//span[@class='titleLabel']")[0]&.inner_text
-      end
-      
-      doc.xpath(TARGET_TABLE_PATH + TARGET_DATA_PATH).each do |node|
-        data << node.css('p').inner_text
+      # 対象テーブル以外を弾くためだけに使用している
+      doc.xpath(TARGET_TABLE_PATH).to_a.each do |node|
+        table_node = node.xpath(TARGET_DATA_PATH)
+
+        # 各種データ+画像データを格納
+        putin = table_node.text.split(/\R/).reject(&:blank?) << image_names[idx]
+
+        # カスタム742、カスタムヘリテイジ912には製品名がないため別対応
+        if [CUSTOM_742_URL, CUSTOM_HERITAGE_912_URL].include? url
+          putin.unshift doc.xpath("//span[@class='titleLabel']")[0]&.inner_text
+        end
+
+        data << putin
       end
     end
 
     # FIXME: この時点でDBに入れる構造にしたい
-    # マジックナンバーが多すぎる
-    @fortain_pen_datas = data.each_slice(4).to_a
-    modify_price!
+    @fortain_pen_datas = modify_price(data)
     import
   end
 
   # 金額を整形した状態の配列を返す
-  def modify_price!
-    @fortain_pen_datas.map do |d|
+  # FIXME: ハッシュ内のpriceというキーについて動くようにしたい
+  def modify_price(ary)
+    ary.map do |d|
       d[2] = d[2].match('円').pre_match.delete(',').to_i
     end
+    ary
   end
 end
