@@ -22,9 +22,10 @@ class FortainPensController < ApplicationController
   before_action :scraping, only: [:index]
 
   def index
-    @fortain_pen_datasdatas
+    @fortain_pen_datas
   end
 
+  # ここらへんも、普段は使わないのでrakeタスクに移動させておく
   def import
     if @fortain_pen_datas
       importer = @fortain_pen_datas.map do |data|
