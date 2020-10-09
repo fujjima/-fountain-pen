@@ -1,5 +1,8 @@
-<%# 基本的なデザインはカード形式 %>
-<%# カードのテンプレートは別に作る %>
-<p>
-  <%= @fortain_pen_datas.first %>
-</p>
+<div class='card-deck'>
+  <div class='row'>
+    <% FortainPen.all.each do |f| %>
+      <%#= 各万年筆ごとに繰り返す %>
+      <%= render partial: 'shared/fortain_pen', locals: { pen: f } %>
+    <% end %>
+  </div>
+</div>
