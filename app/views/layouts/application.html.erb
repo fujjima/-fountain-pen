@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Scraping</title>
+    <title>万年筆検索</title>
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -9,7 +9,10 @@
     <%= javascript_pack_tag 'application' %>
   </head>
 
+  <%#= ここら辺にヘッダーを入れたい %>
   <body>
+    <%= render 'layouts/header' %>
     <%= yield %>
+    <%= render 'layouts/footer' %>
   </body>
 </html>
