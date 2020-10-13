@@ -1,22 +1,5 @@
-# frozen_string_literal: true
-
-# FIXME: スクレイピング機能はモジュールに移す
 require 'nokogiri'
 require 'open-uri'
-
-FORTAIN_PEN_URL = 'https://www.pilot.co.jp/products/pen/fountain/'
-
-# FIXME: カスタム742だけテーブルに製品名がないため別対応を施しているが、xpath内で対応できるなら修正したい
-CUSTOM_742_URL = 'https://www.pilot.co.jp/products/pen/fountain/fountain/custom742/'
-CUSTOM_HERITAGE_912_URL = 'https://www.pilot.co.jp/products/pen/fountain/fountain/custom_heritage912/'
-
-# 万年筆以外のテーブルは弾く（ボトルインキなど）
-TARGET_TABLE_PATH = "//table[@class='dataTableA01' and .//th[text()='サイズ']]"
-
-# サイトの'ペン'の表記ゆれがあるので、複数パターンを書いている
-# カスタム742などは製品名がないため、代わりにspan[@class='titleLabel'][1]で取得している
-TARGET_DATA_PATH = "tbody/tr/th[text()='製品名' or text()='品番' or text()='価格' or text()='ペン種' or text()='ぺン種']//following-sibling::td"
-
 
 class FortainPensController < ApplicationController
   before_action :scraping, only: [:index]
@@ -25,10 +8,11 @@ class FortainPensController < ApplicationController
     @fortain_pen_datas
   end
 
-  # ここらへんも、普段は使わないのでrakeタスクに移動させておく
   def import
     if @fortain_pen_datas
       importer = @fortain_pen_datas.map do |data|
+        # FIXME：配列のインデックス指定は解読不能なので止める
+        # 万年筆の属性をどこかに配列として持っておいて、mapで順に格納していくようにするとか？（順番考慮しないといけない問題は残る）
         h={}
         h[:name] = data[0]
         # 全角は全て半角にして、不要なスペースは削除する
@@ -50,14 +34,18 @@ class FortainPensController < ApplicationController
     urls, data = [], []
     image_names = []
 
-    html = open(FORTAIN_PEN_URL, &:read)
+    # open-uriのopenを使用している
+    html = open(Settings.pilot.url.fortain_pen_url, &:read)
 
+    # Nokogiriが提供しているnode解析メソッド(xpath)を使用するため、Nokogiri::HTML::Documentを取得している
     doc = Nokogiri::HTML.parse(html)
+
     # productList_itemsで最初にヒットしたもの
+    # FIXNE:他サイトとの差異が大きすぎて共通化が難しそうだが、共通化したい
     doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]/a').each do |url_node|
       urls << url_node.get_attribute(:href)
     end
-
+ 
     # 画像ファイル名の一覧取得
     doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]//img').each do |image_node|
       image_names << image_node.get_attribute(:src).split('/').last
@@ -69,14 +57,16 @@ class FortainPensController < ApplicationController
       doc = Nokogiri::HTML.parse(html)
 
       # 対象テーブル以外を弾くためだけに使用している
-      doc.xpath(TARGET_TABLE_PATH).to_a.each do |node|
-        table_node = node.xpath(TARGET_DATA_PATH)
+      doc.xpath(Settings.pilot.xpath.target_table_path).to_a.each do |node|
+        table_node = node.xpath(Settings.pilot.xpath.target_data_path)
 
         # 各種データ+画像データを格納
+        # TODO:整形が必要ない構造に直せないかを考える
+        # TODO:何かの間違いでinage_namesとtable_nodeの対応がずれたら一巻の終わりになってしまう
         putin = table_node.text.split(/\R/).reject(&:blank?) << image_names[idx]
 
         # カスタム742、カスタムヘリテイジ912には製品名がないため別対応
-        if [CUSTOM_742_URL, CUSTOM_HERITAGE_912_URL].include? url
+        if [Settings.pilot.url.custom_742_url, Settings.pilot.url.custom_heritage_912_url].include? url
           putin.unshift doc.xpath("//span[@class='titleLabel']")[0]&.inner_text
         end
 
@@ -84,17 +74,8 @@ class FortainPensController < ApplicationController
       end
     end
 
-    # FIXME: この時点でDBに入れる構造にしたい
+    # FIXME: この時点でFortainPenのインスタンスとして必要な情報は揃っているためインスタンスを作ってしまいたい
     @fortain_pen_datas = modify_price(data)
     import
-  end
-
-  # 金額を整形した状態の配列を返す
-  # FIXME: ハッシュ内のpriceというキーについて動くようにしたい
-  def modify_price(ary)
-    ary.map do |d|
-      d[2] = d[2].match('円').pre_match.delete(',').to_i
-    end
-    ary
   end
 end

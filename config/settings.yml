@@ -1,0 +1,12 @@
+pilot:
+  url:
+    fortain_pen_url: 'https://www.pilot.co.jp/products/pen/fountain/'
+    # FIXME: カスタム742だけテーブルに製品名がないため別対応を施しているが、xpath内で対応できるなら修正したい
+    custom_742_url: 'https://www.pilot.co.jp/products/pen/fountain/fountain/custom742/'
+    custom_heritage_912_url: 'https://www.pilot.co.jp/products/pen/fountain/fountain/custom_heritage912/'
+  xpath:
+    # 万年筆以外のテーブルは弾く（ボトルインキなど）
+    target_table_path: "//table[@class='dataTableA01' and .//th[text()='サイズ']]"
+    # サイトの'ペン'の表記ゆれがあるので、複数パターンを書いている
+    # カスタム742などは製品名がないため、代わりにspan[@class='titleLabel'][1]で取得している
+    target_data_path: "tbody/tr/th[text()='製品名' or text()='品番' or text()='価格' or text()='ペン種' or text()='ぺン種']//following-sibling::td"
