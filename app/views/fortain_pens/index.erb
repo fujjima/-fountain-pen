@@ -1,6 +1,6 @@
 <div class='card-deck'>
   <div class='row'>
-    <% FortainPen.all.each do |f| %>
+    <% @fortain_pens.each do |f| %>
       <%#= 各万年筆ごとに繰り返す %>
       <%= render partial: 'shared/fortain_pen', locals: { pen: f } %>
     <% end %>

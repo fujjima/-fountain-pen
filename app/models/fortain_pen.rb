@@ -1,5 +1,4 @@
 class FortainPen < ApplicationRecord
-
   # 品番が実質のID
   self.primary_key = "product_number"
 

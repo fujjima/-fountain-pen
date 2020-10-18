@@ -5,7 +5,7 @@ class FortainPensController < ApplicationController
   before_action :scraping, only: [:index]
 
   def index
-    @fortain_pen_datas
+    @fortain_pens = FortainPen.all
   end
 
   def import
@@ -15,8 +15,7 @@ class FortainPensController < ApplicationController
         # 万年筆の属性をどこかに配列として持っておいて、mapで順に格納していくようにするとか？（順番考慮しないといけない問題は残る）
         h={}
         h[:name] = data[0]
-        # 全角は全て半角にして、不要なスペースは削除する
-        h[:product_number] = data[1].tr('０-９ａ-ｚＡ-Ｚ', '0-9a-zA-Z').gsub(/[[:blank]]/, '')
+        h[:product_number] = prettier_string(data[1])
         h[:price] = data[2]
         h[:niv_type] = data[3]
         h[:image] = data[4]
@@ -31,43 +30,30 @@ class FortainPensController < ApplicationController
 
   def scraping
     @fortain_pen_datas ||= []
-    urls, data = [], []
-    image_names = []
+    data = []
 
-    # open-uriのopenを使用している
-    html = open(Settings.pilot.url.fortain_pen_url, &:read)
+    # 万年筆一覧ページ内の要素取得ができるようにparseする
+    # open:open-uri#open
+    fortain_pens_list_doc = Nokogiri::HTML.parse(open(Settings.pilot.url.fortain_pen_url, &:read))
 
-    # Nokogiriが提供しているnode解析メソッド(xpath)を使用するため、Nokogiri::HTML::Documentを取得している
-    doc = Nokogiri::HTML.parse(html)
+    fortain_pen_urls(fortain_pens_list_doc).each_with_index do |url, idx|
+      # 各種万年筆ページ内の要素取得のためのhtml
+      fortain_pen_doc = Nokogiri::HTML.parse(open(url, &:read))
 
-    # productList_itemsで最初にヒットしたもの
-    # FIXNE:他サイトとの差異が大きすぎて共通化が難しそうだが、共通化したい
-    doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]/a').each do |url_node|
-      urls << url_node.get_attribute(:href)
-    end
- 
-    # 画像ファイル名の一覧取得
-    doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]//img').each do |image_node|
-      image_names << image_node.get_attribute(:src).split('/').last
-    end
-
-    # 各万年筆のデータ取得
-    urls.each_with_index do |url, idx|
-      html = open(url, &:read)
-      doc = Nokogiri::HTML.parse(html)
+      # 取得する万年筆情報のxpath群を列挙しておく
+      # xpathで取得したデータを順にハッシュに格納しておく（キーの指定）
 
       # 対象テーブル以外を弾くためだけに使用している
-      doc.xpath(Settings.pilot.xpath.target_table_path).to_a.each do |node|
+      fortain_pen_doc.xpath(Settings.pilot.xpath.target_table_path).to_a.each do |node|
         table_node = node.xpath(Settings.pilot.xpath.target_data_path)
 
         # 各種データ+画像データを格納
-        # TODO:整形が必要ない構造に直せないかを考える
-        # TODO:何かの間違いでinage_namesとtable_nodeの対応がずれたら一巻の終わりになってしまう
-        putin = table_node.text.split(/\R/).reject(&:blank?) << image_names[idx]
+        # TODO:何かの間違いでinage_namesとtable_nodeの対応がずれたら一巻の終わり
+        putin = table_node.text.split(/\R/).reject(&:blank?) << fortain_pen_image_names(fortain_pens_list_doc)[idx]
 
         # カスタム742、カスタムヘリテイジ912には製品名がないため別対応
         if [Settings.pilot.url.custom_742_url, Settings.pilot.url.custom_heritage_912_url].include? url
-          putin.unshift doc.xpath("//span[@class='titleLabel']")[0]&.inner_text
+          putin.unshift fortain_pen_doc.xpath("//span[@class='titleLabel']")[0]&.inner_text
         end
 
         data << putin
@@ -77,5 +63,25 @@ class FortainPensController < ApplicationController
     # FIXME: この時点でFortainPenのインスタンスとして必要な情報は揃っているためインスタンスを作ってしまいたい
     @fortain_pen_datas = modify_price(data)
     import
+  end
+
+  # 万年筆一覧ページから各万年筆のページへのリンク要素を探し、配列にして返す
+  def fortain_pen_urls(doc)
+    urls = []
+    # productList_itemsで最初にヒットしたもの
+    doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]/a').each do |url_node|
+      urls << url_node.get_attribute(:href)
+    end
+    urls
+  end
+
+  # 万年筆一覧ページから各万年筆の画像のパスを探し、画像ファイル名の一覧を配列にして返す
+  def fortain_pen_image_names(doc)
+    image_names = []
+    doc.xpath('//div[@class="productList_items"][1]//div[@class="productList_item"]//img').each do |image_node|
+      # xpathで指定されたsrc要素の文字列を/で分割し、その最後の文字列をファイル名とする
+      image_names << image_node.get_attribute(:src).split('/').last
+    end
+    image_names
   end
 end

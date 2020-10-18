@@ -10,4 +10,10 @@ module Prettier
     end
     ary
   end
+
+  # 受け取った文字列内の全角を全て半角にし、不要なスペースを削除する
+  # 主に製品の型番名の整形のために使用される
+  def prettier_string(str)
+    str.tr('０-９ａ-ｚＡ-Ｚ', '0-9a-zA-Z').gsub(/[[:blank]]/, '')
+  end
 end
